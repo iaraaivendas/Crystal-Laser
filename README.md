@@ -104,6 +104,7 @@ Desenvolvido por **I.Ara™** – Soluções em automação e inteligência arti
 ## Responsável Técnico
 
 **Lorenzo Amorim**
+https://github.com/LorenzoAmorim
 CTO & Desenvolvedor responsável pela arquitetura e implementação do sistema.
 
 ---
