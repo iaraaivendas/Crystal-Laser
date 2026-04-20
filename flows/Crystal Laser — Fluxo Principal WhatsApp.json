@@ -21,7 +21,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Mapeamento de número de WhatsApp → contexto da unidade\nconst UNIDADES = {\n  '5566999990001': {\n    unidade_nome: 'Crystal Laser Sinop',\n    cidade: 'Sinop',\n    horario_semana: '08:00 às 19:00',\n    horario_sabado: '08:00 às 16:00',\n    horario_abertura_semana: 8,\n    horario_fechamento_semana: 19,\n    horario_abertura_sabado: 8,\n    horario_fechamento_sabado: 16,\n    google_calendar_id: 'SEU_CALENDAR_ID_SINOP@group.calendar.google.com',\n    numero_whatsapp: '5566999990001'\n  },\n  '5565999990002': {\n    unidade_nome: 'Crystal Laser Cuiabá',\n    cidade: 'Cuiabá',\n    horario_semana: '08:00 às 19:00',\n    horario_sabado: '08:00 às 18:00',\n    horario_abertura_semana: 8,\n    horario_fechamento_semana: 19,\n    horario_abertura_sabado: 8,\n    horario_fechamento_sabado: 18,\n    google_calendar_id: 'SEU_CALENDAR_ID_CUIABA@group.calendar.google.com',\n    numero_whatsapp: '5565999990002'\n  },\n  '5566999990003': {\n    unidade_nome: 'Crystal Laser Sorriso',\n    cidade: 'Sorriso',\n    horario_semana: '09:00 às 18:00',\n    horario_sabado: '09:00 às 13:00',\n    horario_abertura_semana: 9,\n    horario_fechamento_semana: 18,\n    horario_abertura_sabado: 9,\n    horario_fechamento_sabado: 13,\n    google_calendar_id: 'SEU_CALENDAR_ID_SORRISO@group.calendar.google.com',\n    numero_whatsapp: '5566999990003'\n  },\n  '5565999990004': {\n    unidade_nome: 'Crystal Laser Várzea Grande',\n    cidade: 'Várzea Grande',\n    horario_semana: '09:00 às 18:00',\n    horario_sabado: '08:00 às 14:00',\n    horario_abertura_semana: 9,\n    horario_fechamento_semana: 18,\n    horario_abertura_sabado: 8,\n    horario_fechamento_sabado: 14,\n    google_calendar_id: 'SEU_CALENDAR_ID_VARZEA@group.calendar.google.com',\n    numero_whatsapp: '5565999990004'\n  },\n  '5531999990005': {\n    unidade_nome: 'Crystal Laser Contagem',\n    cidade: 'Contagem',\n    horario_semana: '13:00 às 19:00',\n    horario_sabado: '09:00 às 14:00',\n    horario_abertura_semana: 13,\n    horario_fechamento_semana: 19,\n    horario_abertura_sabado: 9,\n    horario_fechamento_sabado: 14,\n    google_calendar_id: 'SEU_CALENDAR_ID_CONTAGEM@group.calendar.google.com',\n    numero_whatsapp: '5531999990005'\n  }\n};\n\nconst body = $input.first().json.body || $input.first().json;\n\n// Extrai dados da mensagem recebida (formato Evolution API)\nconst numeroReceptor = body.instance || body.to || '';\nconst numeroRemetente = body.data?.key?.remoteJid?.replace('@s.whatsapp.net', '') || '';\nconst mensagemTexto = body.data?.message?.conversation \n  || body.data?.message?.extendedTextMessage?.text \n  || '';\nconst messageId = body.data?.key?.id || '';\nconst timestamp = body.data?.messageTimestamp || Math.floor(Date.now() / 1000);\n\n// Identifica a unidade\nconst unidade = UNIDADES[numeroReceptor] || null;\n\nif (!unidade) {\n  throw new Error(`Número receptor não mapeado: ${numeroReceptor}`);\n}\n\nreturn [{\n  json: {\n    // Dados da mensagem\n    numero_remetente: numeroRemetente,\n    numero_receptor: numeroReceptor,\n    mensagem: mensagemTexto,\n    message_id: messageId,\n    timestamp,\n    // Contexto da unidade\n    ...unidade,\n    // Flag para próximas etapas\n    processado: false\n  }\n}];"
+        "jsCode": "// Mapeamento de número de WhatsApp → contexto da unidade\nconst UNIDADES = {\n  '556699884352': {\n    unidade_nome: 'Crystal Laser Sinop',\n    cidade: 'Sinop',\n    horario_semana: '08:00 às 19:00',\n    horario_sabado: '08:00 às 16:00',\n    horario_abertura_semana: 8,\n    horario_fechamento_semana: 19,\n    horario_abertura_sabado: 8,\n    horario_fechamento_sabado: 16,\n    google_calendar_id: 'crystallaser.sinop@gmail.com',\n    numero_whatsapp: '556699884352',\n    numero_notificacao: '555196233390'\n  },\n  '556584040024': {\n    unidade_nome: 'Crystal Laser Cuiabá',\n    cidade: 'Cuiabá',\n    horario_semana: '08:00 às 19:00',\n    horario_sabado: '08:00 às 18:00',\n    horario_abertura_semana: 8,\n    horario_fechamento_semana: 19,\n    horario_abertura_sabado: 8,\n    horario_fechamento_sabado: 18,\n    google_calendar_id: 'laserdreamcuiaba@gmail.com',\n    numero_whatsapp: '556584040024',\n    numero_notificacao: '555196233390'\n  },\n  '556699220642': {\n    unidade_nome: 'Crystal Laser Sorriso',\n    cidade: 'Sorriso',\n    horario_semana: '09:00 às 18:00',\n    horario_sabado: '09:00 às 13:00',\n    horario_abertura_semana: 9,\n    horario_fechamento_semana: 18,\n    horario_abertura_sabado: 9,\n    horario_fechamento_sabado: 13,\n    google_calendar_id: 'crystallaser.sorriso@gmail.com',\n    numero_whatsapp: '556699220642',\n    numero_notificacao: '555196233390'\n  },\n  '556598011102': {\n    unidade_nome: 'Crystal Laser Várzea Grande',\n    cidade: 'Várzea Grande',\n    horario_semana: '09:00 às 18:00',\n    horario_sabado: '08:00 às 14:00',\n    horario_abertura_semana: 9,\n    horario_fechamento_semana: 18,\n    horario_abertura_sabado: 8,\n    horario_fechamento_sabado: 14,\n    google_calendar_id: 'crystallaser.vg@gmail.com',\n    numero_whatsapp: '556598011102',\n    numero_notificacao: '555196233390'\n  },\n  '553171556818': {\n    unidade_nome: 'Crystal Laser Contagem',\n    cidade: 'Contagem',\n    horario_semana: '13:00 às 19:00',\n    horario_sabado: '09:00 às 14:00',\n    horario_abertura_semana: 13,\n    horario_fechamento_semana: 19,\n    horario_abertura_sabado: 9,\n    horario_fechamento_sabado: 14,\n    google_calendar_id: 'crystallaser.contagem@gmail.com',\n    numero_whatsapp: '553171556818',\n    numero_notificacao: '555196233390'\n  }\n};\n\nconst body = $input.first().json.body || $input.first().json;\n\n// Extrai dados da mensagem recebida (formato Evolution API)\nconst numeroReceptor = body.instance || body.to || '';\nconst numeroRemetente = body.data?.key?.remoteJid?.replace('@s.whatsapp.net', '') || '';\nconst mensagemTexto = body.data?.message?.conversation \n  || body.data?.message?.extendedTextMessage?.text \n  || '';\nconst messageId = body.data?.key?.id || '';\nconst timestamp = body.data?.messageTimestamp || Math.floor(Date.now() / 1000);\n\n// Identifica a unidade\nconst unidade = UNIDADES[numeroReceptor] || null;\n\nif (!unidade) {\n  throw new Error(`Número receptor não mapeado: ${numeroReceptor}`);\n}\n\nreturn [{\n  json: {\n    // Dados da mensagem\n    numero_remetente: numeroRemetente,\n    numero_receptor: numeroReceptor,\n    mensagem: mensagemTexto,\n    message_id: messageId,\n    timestamp,\n    // Contexto da unidade\n    ...unidade,\n    // Flag para próximas etapas\n    processado: false\n  }\n}];"
       },
       "id": "73263176-3af6-4bc7-86de-970de7cedf2a",
       "name": "02 · Identificar Unidade e Injetar Contexto",
@@ -88,8 +88,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -176,
-        608
+        -752,
+        672
       ]
     },
     {
@@ -101,8 +101,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1008,
-        -48
+        -1104,
+        -96
       ],
       "notes": "CONFIGURAR: adicione a variável de ambiente SDR_SYSTEM_PROMPT com o conteúdo do arquivo sdr_system_prompt.md no N8N (Settings > Variables)."
     },
@@ -137,8 +137,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [
-        -816,
-        -48
+        -1104,
+        128
       ],
       "notes": "CONFIGURAR: criar credencial 'HTTP Header Auth' no N8N com Name=x-api-key e Value=sua_chave_anthropic"
     },
@@ -151,8 +151,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -576,
-        -48
+        -896,
+        128
       ]
     },
     {
@@ -165,55 +165,9 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
       "position": [
-        -352,
-        -80
+        -672,
+        96
       ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=http://SEU_EVOLUTION_API:8080/message/sendText/{{ $json.numero_receptor }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "SUA_EVOLUTION_API_KEY"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"number\": \"{{ $json.numero_remetente }}\",\n  \"text\": {{ $json.resposta_final | json }},\n  \"delay\": 1200\n}",
-        "options": {}
-      },
-      "id": "4467b30d-e95d-4b40-bb3e-acc7f599a923",
-      "name": "10a · Enviar Mensagem WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        368,
-        160
-      ],
-      "notes": "CONFIGURAR: URL da sua Evolution API + chave de API"
-    },
-    {
-      "parameters": {
-        "jsCode": "const dados = $input.first().json;\n\n// TODO: implementar notificação para o humano\n// Opções: enviar mensagem para grupo interno do WhatsApp,\n// criar tarefa no sistema de gestão, enviar e-mail, etc.\n\nconsole.log(`[ESCALAR] Lead: ${dados.numero_remetente} | Unidade: ${dados.unidade_nome} | Motivo: ${dados.acao_principal}`);\n\nreturn [{\n  json: {\n    ...dados,\n    notificacao_enviada: true,\n    canal_notificacao: 'PENDENTE_IMPLEMENTACAO'\n  }\n}];"
-      },
-      "id": "f393f757-e14f-4b30-9b29-c7e8ea1a5c42",
-      "name": "10b · Notificar Humano (Escalar)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        112,
-        -48
-      ],
-      "notes": "IMPLEMENTAR: conectar ao canal de notificação da equipe (WhatsApp interno, Slack, e-mail, etc.)"
     },
     {
       "parameters": {
@@ -230,8 +184,8 @@
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1,
       "position": [
-        80,
-        304
+        -176,
+        480
       ],
       "notes": "CONFIGURAR: autenticar Google Calendar no N8N com a conta da unidade"
     },
@@ -244,8 +198,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        368,
-        368
+        448,
+        448
       ]
     },
     {
@@ -259,8 +213,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        1456,
-        128
+        1392,
+        336
       ]
     },
     {
@@ -272,8 +226,8 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        -1376,
-        -48
+        -1472,
+        -96
       ],
       "id": "e1a0f7e6-f792-4206-9aaf-5cc179e20625",
       "name": "05a - Redis",
@@ -291,24 +245,98 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1184,
-        -48
+        -1280,
+        -96
       ],
       "id": "5240efae-ceb7-4243-8ca9-6dc781208401",
       "name": "05b - Processar resultado do Redis"
     },
     {
       "parameters": {
-        "jsCode": "const dados = $input.first().json;\n \n// Extrai novos metadados da resposta do agente para atualizar o histórico\n// O agente pode ter identificado o nome, área, estágio etc. nas mensagens\nconst historicoParaSalvar = {\n  nome_lead: dados.nome_lead || '',\n  estagio_lead: dados.estagio_lead || 'NOVO',\n  vitiligo_verificado: dados.vitiligo_verificado || false,\n  area_interesse: dados.area_interesse || '',\n  combo_apresentado: dados.combo_apresentado || '',\n  forma_pagamento_escolhida: dados.forma_pagamento_escolhida || '',\n  flags: dados.flags || [],\n  historico_mensagens: dados.historico_mensagens_atualizado || [],\n  atualizado_em: new Date().toISOString(),\n};\n \nreturn [{\n  json: {\n    redis_chave: dados.redis_chave,\n    redis_valor: JSON.stringify(historicoParaSalvar),\n    redis_ttl: 2592000, // 30 dias em segundos\n    // Passa adiante para o webhook de resposta\n    sucesso: true,\n  }\n}];"
+        "jsCode": "const dados = $input.first().json;\n\nconst motivos = {\n  'ESCALAR_HUMANO': '⚠️ FECHAMENTO / CANCELAMENTO / RECLAMAÇÃO',\n  'ESCALAR_MENOR':  '👧 PROTOCOLO MENOR DE IDADE (filha ≤ 14 anos)',\n};\n\nconst motivo = motivos[dados.acao_principal] || '⚠️ ESCALONAMENTO';\n\nconst mensagem = \n`🔔 *CRYSTAL LASER ${dados.unidade_nome.toUpperCase()}*\n${motivo}\n\n👤 *Lead:* ${dados.nome_lead || 'Não identificado'}\n📱 *WhatsApp:* ${dados.numero_remetente}\n🎯 *Área de interesse:* ${dados.area_interesse || 'Não informada'}\n📋 *Estágio:* ${dados.estagio_lead || 'NOVO'}\n\n💬 *Última mensagem do lead:*\n\"${dados.mensagem}\"\n\n👆 Entre em contato agora para dar continuidade ao atendimento.`;\n\nreturn [{\n  json: {\n    ...dados,\n    numero_notificacao: dados.numero_notificacao,\n    mensagem_notificacao: mensagem,\n    notificacao_montada: true,\n  }\n}];"
+      },
+      "id": "f393f757-e14f-4b30-9b29-c7e8ea1a5c42",
+      "name": "10 · Notificar Humano (Escalar)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        112
+      ],
+      "notes": "IMPLEMENTAR: conectar ao canal de notificação da equipe (WhatsApp interno, Slack, e-mail, etc.)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\nconst INSTANCIAS = {\n  '556699884352': 'crystal-sinop',\n  '556584040024': 'crystal-cuiaba',\n  '556699220642': 'crystal-sorriso',\n  '556598011102': 'crystal-varzea',\n  '553171556818': 'crystal-contagem',\n};\n\nconst instancia = INSTANCIAS[dados.numero_receptor] || 'crystal-sinop';\n\nreturn [{\n  json: {\n    ...dados,\n    evolution_instancia: instancia,\n    evolution_url: `http://31.97.93.103:8080/message/sendText/${instancia}`,\n    evolution_apikey: 'iara-evo-key-2026',\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1008,
-        128
+        160,
+        48
       ],
-      "id": "8ee26092-17fd-40f4-8860-2986722e5e89",
-      "name": "11a - Preparar dados para salvar no Redis"
+      "id": "c7080e5f-ef66-4571-946c-3d58b9456d31",
+      "name": "10a · Instância por unidade"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=={{ $json.evolution_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=={{ $json.evolution_apikey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n           \"number\": \"{{$json.numero_notificacao}}\",\n           \"text\": \"{{$json.mensagem_notificacao}}\",\n           \"delay\": 500\n         }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        400,
+        80
+      ],
+      "id": "91536344-0071-457a-a559-d0cfbc2f7362",
+      "name": "10b - HTTP Request"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=={{ $json.evolution_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=={{ $json.evolution_apikey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.numero_remetente }}\",\n  \"text\": \"{{ $json.resposta_final }}\",\n  \"delay\": 1200\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        656,
+        80
+      ],
+      "id": "56c90545-c809-47ac-9a99-adbceaeca0fc",
+      "name": "10c · Enviar Mensagem WhatsApp"
     },
     {
       "parameters": {
@@ -322,17 +350,30 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        1232,
-        128
+        1168,
+        240
       ],
       "id": "9c449968-7ef4-4ecd-a5c1-5408227530e3",
-      "name": "11b - Redis",
+      "name": "11a - Redis",
       "credentials": {
         "redis": {
           "id": "Hc47g0NYXnAvWj92",
           "name": "Redis account"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n \n// Extrai novos metadados da resposta do agente para atualizar o histórico\n// O agente pode ter identificado o nome, área, estágio etc. nas mensagens\nconst historicoParaSalvar = {\n  nome_lead: dados.nome_lead || '',\n  estagio_lead: dados.estagio_lead || 'NOVO',\n  vitiligo_verificado: dados.vitiligo_verificado || false,\n  area_interesse: dados.area_interesse || '',\n  combo_apresentado: dados.combo_apresentado || '',\n  forma_pagamento_escolhida: dados.forma_pagamento_escolhida || '',\n  flags: dados.flags || [],\n  historico_mensagens: dados.historico_mensagens_atualizado || [],\n  atualizado_em: new Date().toISOString(),\n};\n \nreturn [{\n  json: {\n    redis_chave: dados.redis_chave,\n    redis_valor: JSON.stringify(historicoParaSalvar),\n    redis_ttl: 2592000, // 30 dias em segundos\n    // Passa adiante para o webhook de resposta\n    sucesso: true,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        240
+      ],
+      "id": "8ee26092-17fd-40f4-8860-2986722e5e89",
+      "name": "11 - Preparar dados para salvar no Redis"
     }
   ],
   "pinData": {},
@@ -392,7 +433,7 @@
       "main": [
         [
           {
-            "node": "12 · Resposta ao Webhook",
+            "node": "10a · Instância por unidade",
             "type": "main",
             "index": 0
           }
@@ -436,50 +477,28 @@
       "main": [
         [
           {
-            "node": "10a · Enviar Mensagem WhatsApp",
+            "node": "10a · Instância por unidade",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "10b · Notificar Humano (Escalar)",
+            "node": "10 · Notificar Humano (Escalar)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "10b · Notificar Humano (Escalar)",
+            "node": "10 · Notificar Humano (Escalar)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "10a · Enviar Mensagem WhatsApp",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "10a · Enviar Mensagem WhatsApp": {
-      "main": [
-        [
-          {
-            "node": "11a - Preparar dados para salvar no Redis",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "10b · Notificar Humano (Escalar)": {
-      "main": [
-        [
-          {
-            "node": "10a · Enviar Mensagem WhatsApp",
+            "node": "10a · Instância por unidade",
             "type": "main",
             "index": 0
           }
@@ -490,7 +509,7 @@
       "main": [
         [
           {
-            "node": "10a · Enviar Mensagem WhatsApp",
+            "node": "10a · Instância por unidade",
             "type": "main",
             "index": 0
           }
@@ -501,7 +520,7 @@
       "main": [
         [
           {
-            "node": "11a - Preparar dados para salvar no Redis",
+            "node": "11 - Preparar dados para salvar no Redis",
             "type": "main",
             "index": 0
           }
@@ -530,22 +549,66 @@
         ]
       ]
     },
-    "11a - Preparar dados para salvar no Redis": {
+    "10 · Notificar Humano (Escalar)": {
       "main": [
         [
           {
-            "node": "11b - Redis",
+            "node": "10a · Instância por unidade",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "11b - Redis": {
+    "10a · Instância por unidade": {
+      "main": [
+        [
+          {
+            "node": "10b - HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10b - HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "10c · Enviar Mensagem WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10c · Enviar Mensagem WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "11 - Preparar dados para salvar no Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11a - Redis": {
       "main": [
         [
           {
             "node": "12 · Resposta ao Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 - Preparar dados para salvar no Redis": {
+      "main": [
+        [
+          {
+            "node": "11a - Redis",
             "type": "main",
             "index": 0
           }
@@ -559,7 +622,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "40317947-ad5c-42e6-b3fd-58153600d125",
+  "versionId": "a35ecff9-cc0a-494e-83d0-f87a1f1510e6",
   "meta": {
     "instanceId": "c4d99da8257ec53ded114c35a37aa313db75dff041d32faec281d5682c6fde9b"
   },
