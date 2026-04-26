@@ -1,0 +1,252 @@
+{
+  "name": "Crystal Laser — Workflow Anti No-Show",
+  "nodes": [
+
+    {
+      "id": "cron-noshow",
+      "name": "01 · Cron — Verificar Sessões",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 1 }]
+        }
+      },
+      "notes": "Roda a cada hora. Verifica quais sessões estão nas janelas de 48h, 24h ou 2h."
+    },
+
+    {
+      "id": "buscar-sessoes",
+      "name": "02 · Buscar Sessões do Google Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "parameters": {
+        "operation": "getAll",
+        "calendar": "={{ $vars.CALENDAR_ID_CONTAGEM }}",
+        "returnAll": false,
+        "limit": 50,
+        "additionalFields": {
+          "timeMin": "={{ new Date().toISOString() }}",
+          "timeMax": "={{ new Date(Date.now() + 49 * 60 * 60 * 1000).toISOString() }}"
+        }
+      },
+      "notes": "CONFIGURAR: Usar Split in Batches para iterar por cada unidade (Contagem e Várzea Grande). Por ora busca o Calendar de Contagem como exemplo. Após ter os Calendar IDs reais, criar um nó por unidade ou usar variáveis dinâmicas."
+    },
+
+    {
+      "id": "verificar-janela",
+      "name": "03 · Calcular Janela do Lembrete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "const eventos = $input.all();\nconst agora = new Date();\nconst resultado = [];\n\nfor (const item of eventos) {\n  const evento = item.json;\n  const inicio = new Date(evento.start?.dateTime || evento.start?.date);\n  const diffMs = inicio - agora;\n  const diffHoras = diffMs / (1000 * 60 * 60);\n\n  // Janelas: 46-50h (lembrete 48h), 22-26h (lembrete 24h), 1.5-2.5h (lembrete 2h)\n  let janela = null;\n  if (diffHoras >= 46 && diffHoras <= 50) janela = '48H';\n  else if (diffHoras >= 22 && diffHoras <= 26) janela = '24H';\n  else if (diffHoras >= 1.5 && diffHoras <= 2.5) janela = '2H';\n\n  if (!janela) continue;\n\n  // Extrai número do WhatsApp da descrição do evento\n  const descricao = evento.description || '';\n  const whatsappMatch = descricao.match(/WhatsApp:\\s*(\\d+)/);\n  const numeroLead = whatsappMatch ? whatsappMatch[1] : null;\n\n  if (!numeroLead) continue;\n\n  // Extrai nome do lead do título\n  const nomeLead = (evento.summary || '').replace('Sessão Crystal Laser — ', '').trim();\n\n  // Extrai área da descrição\n  const areaMatch = descricao.match(/Área:\\s*([^\\n]+)/);\n  const area = areaMatch ? areaMatch[1].trim() : 'não informada';\n\n  // Identifica unidade pelo calendar\n  const calendarId = evento.organizer?.email || '';\n  const UNIDADES_CALENDAR = {\n    'crystallaser.contagem@gmail.com': {\n      unidade_nome: 'Crystal Laser Contagem',\n      cidade: 'Contagem',\n      numero_receptor: '553171556818',\n      instancia: 'crystal-contagem'\n    },\n    'crystallaser.vg@gmail.com': {\n      unidade_nome: 'Crystal Laser Várzea Grande',\n      cidade: 'Várzea Grande',\n      numero_receptor: '556598011102',\n      instancia: 'crystal-varzea'\n    }\n  };\n\n  const unidade = UNIDADES_CALENDAR[calendarId] || {\n    unidade_nome: 'Crystal Laser',\n    cidade: '',\n    numero_receptor: '553171556818',\n    instancia: 'crystal-contagem'\n  };\n\n  resultado.push({\n    json: {\n      event_id: evento.id,\n      numero_lead: numeroLead,\n      nome_lead: nomeLead,\n      area_sessao: area,\n      data_sessao: inicio.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }),\n      hora_sessao: inicio.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),\n      janela_lembrete: janela,\n      diff_horas: Math.round(diffHoras),\n      ...unidade,\n      evolution_url: `http://31.97.93.103:8080/message/sendText/${unidade.instancia}`,\n      evolution_apikey: 'iara-evo-key-2026'\n    }\n  });\n}\n\nif (resultado.length === 0) {\n  return [{ json: { sem_sessoes: true } }];\n}\n\nreturn resultado;"
+      }
+    },
+
+    {
+      "id": "if-sessoes",
+      "name": "04 · Tem sessões na janela?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "parameters": {
+        "conditions": {
+          "conditions": [{
+            "leftValue": "={{ $json.sem_sessoes }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "verificar-horario",
+      "name": "05 · Verificar Horário de Silêncio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\nconst agora = new Date();\nconst horaBrasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));\nconst hora = horaBrasilia.getHours();\nconst diaSemana = horaBrasilia.getDay();\n\nlet dentroDoHorario = false;\nif (diaSemana === 0) {\n  dentroDoHorario = false;\n} else if (diaSemana === 6) {\n  dentroDoHorario = hora >= 9 && hora < 18;\n} else {\n  dentroDoHorario = hora >= 8 && hora < 20;\n}\n\nreturn [{ json: { ...dados, dentro_do_horario: dentroDoHorario } }];"
+      }
+    },
+
+    {
+      "id": "if-horario",
+      "name": "06 · Dentro do Horário?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 400],
+      "parameters": {
+        "conditions": {
+          "conditions": [{
+            "leftValue": "={{ $json.dentro_do_horario }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "montar-lembrete",
+      "name": "07 · Montar Mensagem de Lembrete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\nconst fs = require('fs');\n\nlet systemPrompt = fs.readFileSync(\n  '/home/iara/clients/Crystal-Laser/agents/antinoshow_system_prompt.md',\n  'utf8'\n);\n\nsystemPrompt = systemPrompt\n  .replaceAll('{{unidade_nome}}', dados.unidade_nome)\n  .replaceAll('{{cidade}}', dados.cidade)\n  .replaceAll('{{nome_lead}}', dados.nome_lead || '')\n  .replaceAll('{{area_sessao}}', dados.area_sessao || '')\n  .replaceAll('{{data_sessao}}', dados.data_sessao || '')\n  .replaceAll('{{hora_sessao}}', dados.hora_sessao || '')\n  .replaceAll('{{janela_lembrete}}', dados.janela_lembrete || '')\n  .replaceAll('{{numero_sessao}}', '1ª sessão')\n  .replaceAll('{{endereco_unidade}}', dados.cidade);\n\nconst instrucao = `Gere APENAS a mensagem de lembrete para a janela ${dados.janela_lembrete}. Nada mais além da mensagem a enviar.`;\n\nreturn [{\n  json: {\n    ...dados,\n    system_prompt_final: systemPrompt,\n    messages_payload: [{ role: 'user', content: instrucao }]\n  }\n}];"
+      }
+    },
+
+    {
+      "id": "chamar-claude",
+      "name": "08 · Chamar Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1780, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-5\",\n  \"max_tokens\": 512,\n  \"system\": {{ $json.system_prompt_final | json }},\n  \"messages\": {{ $json.messages_payload | json }}\n}",
+        "options": { "timeout": 30000 }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "Anthropic API Key", "id": "CONFIGURAR_CREDENTIAL_ID" }
+      }
+    },
+
+    {
+      "id": "processar-resposta",
+      "name": "09 · Processar Resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 300],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\nconst claudeResponse = dados.content?.[0]?.text || '';\n\nconst confirmar = claudeResponse.includes('[CONFIRMAR_CALENDARIO]');\nconst remarcar = claudeResponse.includes('[REMARCAR_CALENDARIO]');\nconst escalar = claudeResponse.includes('[ESCALAR_HUMANO]');\nconst retornarSdr = claudeResponse.includes('[RETORNAR_SDR]');\n\nconst respostaLimpa = claudeResponse\n  .replace(/\\[CONFIRMAR_CALENDARIO\\]/g, '')\n  .replace(/\\[REMARCAR_CALENDARIO\\]/g, '')\n  .replace(/\\[ESCALAR_HUMANO\\]/g, '')\n  .replace(/\\[RETORNAR_SDR\\]/g, '')\n  .trim();\n\nlet acao = 'ENVIAR_LEMBRETE';\nif (escalar) acao = 'ESCALAR';\nelse if (retornarSdr) acao = 'RETORNAR_SDR';\n\nreturn [{\n  json: {\n    ...dados,\n    resposta_final: respostaLimpa,\n    acao_principal: acao,\n    confirmar_calendario: confirmar,\n    remarcar_calendario: remarcar\n  }\n}];"
+      }
+    },
+
+    {
+      "id": "enviar-whatsapp",
+      "name": "10 · Enviar Lembrete WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2220, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "=={{ $json.evolution_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "=={{ $json.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.numero_lead }}\",\n  \"text\": {{ $json.resposta_final | json }},\n  \"delay\": 1200\n}",
+        "options": { "timeout": 30000 }
+      }
+    },
+
+    {
+      "id": "registrar-lembrete",
+      "name": "11 · Registrar Lembrete no Redis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 300],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\n// Registra que o lembrete foi enviado para evitar reenvio duplicado\nconst chave = `noshow_${dados.event_id}_${dados.janela_lembrete}`;\n\nreturn [{\n  json: {\n    redis_chave: chave,\n    redis_valor: JSON.stringify({\n      event_id: dados.event_id,\n      janela: dados.janela_lembrete,\n      enviado_em: new Date().toISOString(),\n      numero_lead: dados.numero_lead\n    }),\n    redis_ttl: 259200\n  }\n}];"
+      }
+    },
+
+    {
+      "id": "redis-set",
+      "name": "12 · Redis Set — Registrar Envio",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [2660, 300],
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.redis_chave }}",
+        "value": "={{ $json.redis_valor }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 259200
+      },
+      "credentials": {
+        "redis": { "id": "Hc47g0NYXnAvWj92", "name": "Redis account" }
+      }
+    }
+
+  ],
+
+  "connections": {
+    "01 · Cron — Verificar Sessões": {
+      "main": [[{ "node": "02 · Buscar Sessões do Google Calendar", "type": "main", "index": 0 }]]
+    },
+    "02 · Buscar Sessões do Google Calendar": {
+      "main": [[{ "node": "03 · Calcular Janela do Lembrete", "type": "main", "index": 0 }]]
+    },
+    "03 · Calcular Janela do Lembrete": {
+      "main": [[{ "node": "04 · Tem sessões na janela?", "type": "main", "index": 0 }]]
+    },
+    "04 · Tem sessões na janela?": {
+      "main": [
+        [{ "node": "05 · Verificar Horário de Silêncio", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "05 · Verificar Horário de Silêncio": {
+      "main": [[{ "node": "06 · Dentro do Horário?", "type": "main", "index": 0 }]]
+    },
+    "06 · Dentro do Horário?": {
+      "main": [
+        [{ "node": "07 · Montar Mensagem de Lembrete", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "07 · Montar Mensagem de Lembrete": {
+      "main": [[{ "node": "08 · Chamar Claude API", "type": "main", "index": 0 }]]
+    },
+    "08 · Chamar Claude API": {
+      "main": [[{ "node": "09 · Processar Resposta", "type": "main", "index": 0 }]]
+    },
+    "09 · Processar Resposta": {
+      "main": [[{ "node": "10 · Enviar Lembrete WhatsApp", "type": "main", "index": 0 }]]
+    },
+    "10 · Enviar Lembrete WhatsApp": {
+      "main": [[{ "node": "11 · Registrar Lembrete no Redis", "type": "main", "index": 0 }]]
+    },
+    "11 · Registrar Lembrete no Redis": {
+      "main": [[{ "node": "12 · Redis Set — Registrar Envio", "type": "main", "index": 0 }]]
+    }
+  },
+
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "_comentarios": {
+    "PASSO_1": "Importar no N8N via Settings > Import workflow",
+    "PASSO_2": "Configurar autenticação Google Calendar no nó 02 com OAuth2 das contas das unidades",
+    "PASSO_3": "Configurar credencial Anthropic API Key no nó 08",
+    "PASSO_4": "Ativar após os Calendar IDs estarem configurados e o fluxo principal em produção",
+    "DEDUP": "O Redis evita reenvio: chave noshow_{event_id}_{janela} — TTL 3 dias"
+  }
+}

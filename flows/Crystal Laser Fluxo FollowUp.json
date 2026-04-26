@@ -1,0 +1,300 @@
+{
+  "name": "Crystal Laser — Workflow Follow Up",
+  "nodes": [
+
+    {
+      "id": "cron-followup",
+      "name": "01 · Cron — Verificar Leads para Follow Up",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "notes": "Roda a cada hora. O nó 02 filtra quais leads precisam de follow up agora."
+    },
+
+    {
+      "id": "buscar-leads-frios",
+      "name": "02 · Buscar Leads para Follow Up no Redis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "// Busca todos os leads salvos no Redis com prefixo cl_hist_\n// e filtra os que precisam de follow up agora\n\n// NOTA: Este nó usa o cliente Redis via HTTP interno do N8N\n// Na prática, use o nó Redis nativo com operação KEYS + GET\n// para buscar todos os históricos e filtrar os elegíveis\n\n// Estrutura esperada de cada histórico no Redis:\n// {\n//   nome_lead, estagio_lead, numero_remetente, numero_receptor,\n//   historico_mensagens, ultimo_contato, tentativas_followup,\n//   proximo_followup, flags\n// }\n\n// Por enquanto retorna estrutura mock para desenvolvimento\n// IMPLEMENTAR: buscar chaves cl_hist_* no Redis e filtrar\n\nconst agora = new Date();\n\n// Simulação — em produção, buscar do Redis\nconst leadsMock = [\n  {\n    redis_chave: 'cl_hist_5566999990000_5566999990001',\n    numero_remetente: '5566999990000',\n    numero_receptor: '5566999990001',\n    unidade_nome: 'Crystal Laser Sinop',\n    cidade: 'Sinop',\n    horario_semana: '08:00 às 19:00',\n    horario_sabado: '08:00 às 16:00',\n    horario_abertura_semana: 8,\n    horario_fechamento_semana: 19,\n    horario_abertura_sabado: 8,\n    horario_fechamento_sabado: 16,\n    nome_lead: 'Maria',\n    estagio_lead: 'GHOST_24H',\n    area_interesse: 'virilha completa',\n    tentativas_followup: 0,\n    ultimo_contato: new Date(agora - 24 * 60 * 60 * 1000).toISOString(),\n    proximo_followup: agora.toISOString(),\n    motivo_nao_fechou: '',\n    historico_mensagens: []\n  }\n];\n\n// Filtra apenas leads onde proximo_followup <= agora\nconst leadsElegiveis = leadsMock.filter(lead => {\n  if (!lead.proximo_followup) return false;\n  if (lead.tentativas_followup >= 3) return false;\n  if (lead.estagio_lead === 'LEAD_ENCERRADO') return false;\n  if (lead.estagio_lead === 'LEAD_FRIO_PAUSADO') return false;\n  const proximo = new Date(lead.proximo_followup);\n  return proximo <= agora;\n});\n\nif (leadsElegiveis.length === 0) {\n  return [{ json: { sem_leads: true } }];\n}\n\nreturn leadsElegiveis.map(lead => ({ json: lead }));"
+      },
+      "notes": "IMPLEMENTAR: substituir o mock por busca real no Redis usando nó Redis com operação KEYS cl_hist_* seguido de GET para cada chave."
+    },
+
+    {
+      "id": "if-sem-leads",
+      "name": "03 · Tem leads para follow up?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "conditions": {
+          "conditions": [{
+            "leftValue": "={{ $json.sem_leads }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "verificar-horario-followup",
+      "name": "04 · Verificar Horário de Silêncio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\nconst agora = new Date();\nconst horaBrasilia = new Date(agora.toLocaleString('en-US', { timeZone: 'America/Cuiaba' }));\nconst hora = horaBrasilia.getHours();\nconst diaSemana = horaBrasilia.getDay();\n\nlet dentroDoHorario = false;\n\nif (diaSemana === 0) {\n  dentroDoHorario = false;\n} else if (diaSemana === 6) {\n  dentroDoHorario = hora >= 9 && hora < 18;\n} else {\n  dentroDoHorario = hora >= 8 && hora < 20;\n}\n\nreturn [{\n  json: {\n    ...dados,\n    dentro_do_horario: dentroDoHorario,\n    hora_atual: hora,\n    dia_semana: diaSemana\n  }\n}];"
+      }
+    },
+
+    {
+      "id": "if-horario-followup",
+      "name": "05 · Dentro do Horário?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 400],
+      "parameters": {
+        "conditions": {
+          "conditions": [{
+            "leftValue": "={{ $json.dentro_do_horario }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "montar-prompt-followup",
+      "name": "06 · Montar Prompt Follow Up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\nconst fs = require('fs');\n\n// Lê o system prompt do Follow Up\nlet systemPrompt = fs.readFileSync(\n  '/home/iara/clients/Crystal-Laser/agents/followup_system_prompt.md',\n  'utf8'\n);\n\n// Injeta variáveis de contexto\nsystemPrompt = systemPrompt\n  .replaceAll('{{unidade_nome}}', dados.unidade_nome)\n  .replaceAll('{{cidade}}', dados.cidade)\n  .replaceAll('{{horario_semana}}', dados.horario_semana)\n  .replaceAll('{{horario_sabado}}', dados.horario_sabado)\n  .replaceAll('{{nome_lead}}', dados.nome_lead || '')\n  .replaceAll('{{area_interesse}}', dados.area_interesse || 'não informada')\n  .replaceAll('{{estagio_lead}}', dados.estagio_lead || 'GHOST_24H')\n  .replaceAll('{{tentativas}}', String(dados.tentativas_followup || 0))\n  .replaceAll('{{ultimo_contato}}', dados.ultimo_contato || '')\n  .replaceAll('{{motivo_nao_fechou}}', dados.motivo_nao_fechou || 'não identificado');\n\n// Monta histórico resumido para contexto\nconst historico = dados.historico_mensagens || [];\nconst historicoResumido = historico.slice(-6); // últimas 6 mensagens\n\n// Instrução direta para o agente gerar a mensagem de follow up\nconst mensagemUsuario = `Gere a mensagem de follow up adequada para este lead.\nEstágio atual: ${dados.estagio_lead}\nTentativa número: ${dados.tentativas_followup + 1} de 3\nÚltimo contato: ${dados.ultimo_contato}\nHistórico resumido: ${JSON.stringify(historicoResumido)}\n\nGere apenas a mensagem a ser enviada, sem explicações adicionais.`;\n\nreturn [{\n  json: {\n    ...dados,\n    system_prompt_final: systemPrompt,\n    messages_payload: [{ role: 'user', content: mensagemUsuario }]\n  }\n}];"
+      }
+    },
+
+    {
+      "id": "chamar-claude-followup",
+      "name": "07 · Chamar Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1560, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $credentials.httpHeaderAuth.value }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-5\",\n  \"max_tokens\": 512,\n  \"system\": {{ $json.system_prompt_final | json }},\n  \"messages\": {{ $json.messages_payload | json }}\n}",
+        "options": { "timeout": 30000 }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Anthropic API Key",
+          "id": "CONFIGURAR_CREDENTIAL_ID"
+        }
+      }
+    },
+
+    {
+      "id": "processar-followup",
+      "name": "08 · Processar Resposta e Detectar Tags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\nconst claudeResponse = dados.content?.[0]?.text || '';\n\n// Detecta tags de controle\nconst retornarSdr = claudeResponse.includes('[RETORNAR_SDR]');\nconst escalarHumano = claudeResponse.includes('[ESCALAR_HUMANO]');\nconst escalarMenor = claudeResponse.includes('[ESCALAR_MENOR]');\nconst encerrarVitiligo = claudeResponse.includes('[ENCERRAR_VITILIGO]');\nconst leadEncerrado = claudeResponse.includes('[LEAD_ENCERRADO]');\nconst leadFrioPausado = claudeResponse.includes('[LEAD_FRIO_PAUSADO]');\n\n// Limpa a resposta\nconst respostaLimpa = claudeResponse\n  .replace(/\\[RETORNAR_SDR\\]/g, '')\n  .replace(/\\[ESCALAR_HUMANO\\]/g, '')\n  .replace(/\\[ESCALAR_MENOR\\]/g, '')\n  .replace(/\\[ENCERRAR_VITILIGO\\]/g, '')\n  .replace(/\\[LEAD_ENCERRADO\\]/g, '')\n  .replace(/\\[LEAD_FRIO_PAUSADO\\]/g, '')\n  .trim();\n\n// Determina ação\nlet acao_principal = 'ENVIAR_FOLLOWUP';\nif (escalarHumano) acao_principal = 'ESCALAR_HUMANO';\nelse if (escalarMenor) acao_principal = 'ESCALAR_MENOR';\nelse if (encerrarVitiligo) acao_principal = 'ENCERRAR_VITILIGO';\nelse if (retornarSdr) acao_principal = 'RETORNAR_SDR';\nelse if (leadEncerrado) acao_principal = 'LEAD_ENCERRADO';\nelse if (leadFrioPausado) acao_principal = 'LEAD_FRIO_PAUSADO';\n\n// Calcula próximo follow up conforme tentativa\nconst tentativaAtual = dados.tentativas_followup || 0;\nconst intervalos = [0, 2, 2, 2]; // dias até próximo contato\nconst diasAteProximo = intervalos[tentativaAtual + 1] || 0;\nconst proximoFollowUp = new Date();\nproximoFollowUp.setDate(proximoFollowUp.getDate() + diasAteProximo);\n\nreturn [{\n  json: {\n    ...dados,\n    resposta_final: respostaLimpa,\n    acao_principal,\n    tentativas_followup: tentativaAtual + 1,\n    proximo_followup: diasAteProximo > 0 ? proximoFollowUp.toISOString() : null,\n    historico_mensagens_atualizado: [\n      ...(dados.historico_mensagens || []),\n      { role: 'assistant', content: respostaLimpa, timestamp: new Date().toISOString(), tipo: 'FOLLOW_UP' }\n    ]\n  }\n}];"
+      }
+    },
+
+    {
+      "id": "router-followup",
+      "name": "09 · Router de Ação",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [2000, 300],
+      "parameters": {
+        "mode": "expression",
+        "output": "={{ $json.acao_principal }}",
+        "rules": {
+          "rules": [
+            { "value": "ENVIAR_FOLLOWUP", "output": 0 },
+            { "value": "ESCALAR_HUMANO", "output": 1 },
+            { "value": "RETORNAR_SDR", "output": 2 },
+            { "value": "LEAD_ENCERRADO", "output": 3 },
+            { "value": "LEAD_FRIO_PAUSADO", "output": 3 },
+            { "value": "ENCERRAR_VITILIGO", "output": 3 }
+          ]
+        }
+      }
+    },
+
+    {
+      "id": "enviar-followup-whatsapp",
+      "name": "10a · Enviar Mensagem WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2220, 160],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://SEU_EVOLUTION_API:8080/message/sendText/NOME_DA_INSTANCIA",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "SUA_EVOLUTION_API_KEY" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.numero_remetente }}\",\n  \"text\": {{ $json.resposta_final | json }},\n  \"delay\": 1500\n}"
+      },
+      "notes": "CONFIGURAR: URL e chave da Evolution API quando disponível."
+    },
+
+    {
+      "id": "notificar-humano-followup",
+      "name": "10b · Notificar Humano",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2220, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "=http://SEU_EVOLUTION_API:8080/message/sendText/NOME_DA_INSTANCIA",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "SUA_EVOLUTION_API_KEY" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"NUMERO_INTERNO_UNIDADE\",\n  \"text\": \"🔔 *FOLLOW UP — {{ $json.unidade_nome }}*\\n\\n⚠️ Lead precisa de atendimento humano\\n👤 *Lead:* {{ $json.nome_lead }}\\n📱 *WhatsApp:* {{ $json.numero_remetente }}\\n🎯 *Área:* {{ $json.area_interesse }}\\n\\nAção necessária: {{ $json.acao_principal }}\",\n  \"delay\": 500\n}"
+      }
+    },
+
+    {
+      "id": "atualizar-redis-followup",
+      "name": "11a · Preparar dados para Redis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 160],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\nconst historicoParaSalvar = {\n  nome_lead: dados.nome_lead || '',\n  estagio_lead: dados.acao_principal === 'LEAD_ENCERRADO' ? 'LEAD_ENCERRADO' \n    : dados.acao_principal === 'LEAD_FRIO_PAUSADO' ? 'LEAD_FRIO_PAUSADO'\n    : dados.estagio_lead,\n  area_interesse: dados.area_interesse || '',\n  combo_apresentado: dados.combo_apresentado || '',\n  forma_pagamento_escolhida: dados.forma_pagamento_escolhida || '',\n  tentativas_followup: dados.tentativas_followup || 0,\n  ultimo_contato: new Date().toISOString(),\n  proximo_followup: dados.proximo_followup || null,\n  motivo_nao_fechou: dados.motivo_nao_fechou || '',\n  flags: dados.flags || [],\n  historico_mensagens: dados.historico_mensagens_atualizado || [],\n  atualizado_em: new Date().toISOString(),\n};\n\nreturn [{\n  json: {\n    redis_chave: dados.redis_chave,\n    redis_valor: JSON.stringify(historicoParaSalvar),\n    redis_ttl: 2592000,\n  }\n}];"
+      }
+    },
+
+    {
+      "id": "redis-set-followup",
+      "name": "11b · Redis Set — Salvar Histórico",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [2660, 160],
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.redis_chave }}",
+        "value": "={{ $json.redis_valor }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 2592000
+      },
+      "credentials": {
+        "redis": {
+          "name": "Redis account",
+          "id": "CONFIGURAR_CREDENTIAL_ID"
+        }
+      }
+    }
+
+  ],
+
+  "connections": {
+    "01 · Cron — Verificar Leads para Follow Up": {
+      "main": [[ { "node": "02 · Buscar Leads para Follow Up no Redis", "type": "main", "index": 0 } ]]
+    },
+    "02 · Buscar Leads para Follow Up no Redis": {
+      "main": [[ { "node": "03 · Tem leads para follow up?", "type": "main", "index": 0 } ]]
+    },
+    "03 · Tem leads para follow up?": {
+      "main": [
+        [ { "node": "04 · Verificar Horário de Silêncio", "type": "main", "index": 0 } ],
+        []
+      ]
+    },
+    "04 · Verificar Horário de Silêncio": {
+      "main": [[ { "node": "05 · Dentro do Horário?", "type": "main", "index": 0 } ]]
+    },
+    "05 · Dentro do Horário?": {
+      "main": [
+        [ { "node": "06 · Montar Prompt Follow Up", "type": "main", "index": 0 } ],
+        []
+      ]
+    },
+    "06 · Montar Prompt Follow Up": {
+      "main": [[ { "node": "07 · Chamar Claude API", "type": "main", "index": 0 } ]]
+    },
+    "07 · Chamar Claude API": {
+      "main": [[ { "node": "08 · Processar Resposta e Detectar Tags", "type": "main", "index": 0 } ]]
+    },
+    "08 · Processar Resposta e Detectar Tags": {
+      "main": [[ { "node": "09 · Router de Ação", "type": "main", "index": 0 } ]]
+    },
+    "09 · Router de Ação": {
+      "main": [
+        [ { "node": "10a · Enviar Mensagem WhatsApp", "type": "main", "index": 0 } ],
+        [ { "node": "10b · Notificar Humano", "type": "main", "index": 0 } ],
+        [ { "node": "10b · Notificar Humano", "type": "main", "index": 0 } ],
+        [ { "node": "11a · Preparar dados para Redis", "type": "main", "index": 0 } ]
+      ]
+    },
+    "10a · Enviar Mensagem WhatsApp": {
+      "main": [[ { "node": "11a · Preparar dados para Redis", "type": "main", "index": 0 } ]]
+    },
+    "10b · Notificar Humano": {
+      "main": [[ { "node": "10a · Enviar Mensagem WhatsApp", "type": "main", "index": 0 } ]]
+    },
+    "11a · Preparar dados para Redis": {
+      "main": [[ { "node": "11b · Redis Set — Salvar Histórico", "type": "main", "index": 0 } ]]
+    }
+  },
+
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+
+  "_comentarios_configuracao": {
+    "PASSO_1": "Importe este JSON no N8N via Settings > Import workflow",
+    "PASSO_2": "No nó 02, substituir o mock por busca real no Redis quando tiver volume de leads",
+    "PASSO_3": "Configurar credencial Anthropic API Key no nó 07",
+    "PASSO_4": "Configurar URL e chave da Evolution API nos nós 10a e 10b",
+    "PASSO_5": "Configurar credencial Redis no nó 11b",
+    "PASSO_6": "Ativar o workflow após o fluxo principal estar em produção"
+  }
+}

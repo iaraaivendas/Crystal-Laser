@@ -1,0 +1,355 @@
+{
+  "name": "Crystal Laser — Workflow NPS + Indicação",
+  "nodes": [
+
+    {
+      "id": "cron-nps",
+      "name": "01 · Cron — Verificar Sessões Realizadas",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 1 }]
+        }
+      },
+      "notes": "Roda a cada hora. Busca sessões marcadas como REALIZADA há exatamente ~1h para disparar o NPS."
+    },
+
+    {
+      "id": "buscar-realizadas",
+      "name": "02 · Buscar Sessões REALIZADAS no Redis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "// Busca sessões marcadas como REALIZADA no Redis\n// O fluxo principal ou a equipe da clínica marca a sessão como REALIZADA\n// salvando uma chave no Redis: sessao_realizada_{event_id}\n// com os dados do lead e da sessão\n\n// IMPLEMENTAR: usar nó Redis LIST ou buscar chaves com prefixo 'sessao_realizada_*'\n// Por ora retorna mock para desenvolvimento\n\nconst agora = new Date();\nconst umaHoraAtras = new Date(agora - 60 * 60 * 1000);\n\n// Simulação — em produção buscar do Redis\nconst sessoesMock = [\n  {\n    event_id: 'evt_exemplo_001',\n    numero_lead: '5565999990001',\n    nome_lead: 'Maria Silva',\n    area_sessao: 'virilha completa',\n    numero_sessao: '3ª sessão',\n    total_sessoes: 10,\n    sessoes_restantes: 7,\n    realizada_em: umaHoraAtras.toISOString(),\n    numero_receptor: '553171556818',\n    unidade_nome: 'Crystal Laser Contagem',\n    cidade: 'Contagem',\n    instancia: 'crystal-contagem'\n  }\n];\n\n// Filtra sessões realizadas há entre 55 e 65 minutos (janela de 1h)\nconst elegiveis = sessoesMock.filter(s => {\n  const realizadaEm = new Date(s.realizada_em);\n  const diffMin = (agora - realizadaEm) / (1000 * 60);\n  return diffMin >= 55 && diffMin <= 65;\n});\n\nif (elegiveis.length === 0) {\n  return [{ json: { sem_sessoes: true } }];\n}\n\nreturn elegiveis.map(s => ({\n  json: {\n    ...s,\n    evolution_url: `http://31.97.93.103:8080/message/sendText/${s.instancia}`,\n    evolution_apikey: 'iara-evo-key-2026'\n  }\n}));"
+      },
+      "notes": "IMPLEMENTAR: substituir mock por busca real no Redis com prefixo 'sessao_realizada_*'"
+    },
+
+    {
+      "id": "if-sessoes",
+      "name": "03 · Tem sessões para NPS?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "conditions": {
+          "conditions": [{
+            "leftValue": "={{ $json.sem_sessoes }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "equals" }
+          }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "montar-nps",
+      "name": "04 · Montar Mensagem NPS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\nconst fs = require('fs');\n\nlet systemPrompt = fs.readFileSync(\n  '/home/iara/clients/Crystal-Laser/agents/nps_system_prompt.md',\n  'utf8'\n);\n\nsystemPrompt = systemPrompt\n  .replaceAll('{{unidade_nome}}', dados.unidade_nome)\n  .replaceAll('{{cidade}}', dados.cidade)\n  .replaceAll('{{nome_lead}}', dados.nome_lead || '')\n  .replaceAll('{{area_sessao}}', dados.area_sessao || '')\n  .replaceAll('{{numero_sessao}}', dados.numero_sessao || '1ª sessão')\n  .replaceAll('{{total_sessoes}}', String(dados.total_sessoes || 10))\n  .replaceAll('{{sessoes_restantes}}', String(dados.sessoes_restantes || 9))\n  .replaceAll('{{nota_nps}}', '');\n\nconst instrucao = 'Gere APENAS a mensagem inicial de NPS para enviar ao cliente após a sessão. Nada mais além da mensagem.';\n\nreturn [{\n  json: {\n    ...dados,\n    system_prompt_final: systemPrompt,\n    messages_payload: [{ role: 'user', content: instrucao }]\n  }\n}];"
+      }
+    },
+
+    {
+      "id": "chamar-claude",
+      "name": "05 · Chamar Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-5\",\n  \"max_tokens\": 512,\n  \"system\": {{ $json.system_prompt_final | json }},\n  \"messages\": {{ $json.messages_payload | json }}\n}",
+        "options": { "timeout": 30000 }
+      },
+      "credentials": {
+        "httpHeaderAuth": { "name": "Anthropic API Key", "id": "CONFIGURAR_CREDENTIAL_ID" }
+      }
+    },
+
+    {
+      "id": "enviar-nps",
+      "name": "06 · Enviar NPS WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "=={{ $json.evolution_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "=={{ $json.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.numero_lead }}\",\n  \"text\": {{ $json.content[0].text | json }},\n  \"delay\": 1500\n}",
+        "options": { "timeout": 30000 }
+      }
+    },
+
+    {
+      "id": "registrar-nps-enviado",
+      "name": "07 · Registrar NPS Enviado no Redis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 400],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\n// Marca NPS como enviado e aguarda resposta do lead\n// O fluxo principal detecta a resposta via webhook e processa\nconst chave = `nps_aguardando_${dados.numero_lead}`;\n\nreturn [{\n  json: {\n    redis_chave: chave,\n    redis_valor: JSON.stringify({\n      event_id: dados.event_id,\n      numero_lead: dados.numero_lead,\n      nome_lead: dados.nome_lead,\n      area_sessao: dados.area_sessao,\n      numero_sessao: dados.numero_sessao,\n      total_sessoes: dados.total_sessoes,\n      sessoes_restantes: dados.sessoes_restantes,\n      unidade_nome: dados.unidade_nome,\n      numero_receptor: dados.numero_receptor,\n      instancia: dados.instancia,\n      evolution_url: dados.evolution_url,\n      nps_enviado_em: new Date().toISOString(),\n      estagio: 'AGUARDANDO_NOTA'\n    }),\n    redis_ttl: 259200\n  }\n}];"
+      }
+    },
+
+    {
+      "id": "redis-set-nps",
+      "name": "08 · Redis Set — NPS Aguardando",
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [1780, 400],
+      "parameters": {
+        "operation": "set",
+        "key": "={{ $json.redis_chave }}",
+        "value": "={{ $json.redis_valor }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": 259200
+      },
+      "credentials": {
+        "redis": { "id": "Hc47g0NYXnAvWj92", "name": "Redis account" }
+      }
+    },
+
+    {
+      "id": "webhook-resposta-nps",
+      "name": "09 · Webhook — Resposta do Lead ao NPS",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 600],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crystal-laser-nps-resposta",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "notes": "Este webhook recebe a resposta do lead ao NPS via fluxo principal. O fluxo principal detecta que o lead está em estagio NPS_AGUARDANDO_NOTA e redireciona para cá."
+    },
+
+    {
+      "id": "processar-nota",
+      "name": "10 · Processar Nota do Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 600],
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\nconst mensagem = dados.mensagem || '';\n\n// Extrai nota da mensagem (1 a 5)\nconst notaMatch = mensagem.match(/[1-5]/);\nconst nota = notaMatch ? parseInt(notaMatch[0]) : null;\n\nif (!nota) {\n  return [{ json: { ...dados, nota: null, acao: 'AGUARDAR_NOTA_VALIDA' } }];\n}\n\nlet acao = 'NPS_NEUTRO';\nif (nota >= 4) acao = 'NPS_POSITIVO';\nelse if (nota <= 2) acao = 'NPS_NEGATIVO';\n\nreturn [{ json: { ...dados, nota, acao } }];"
+      }
+    },
+
+    {
+      "id": "router-nps",
+      "name": "11 · Router por Nota",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [680, 600],
+      "parameters": {
+        "mode": "expression",
+        "output": "={{ $json.acao }}",
+        "rules": {
+          "rules": [
+            { "value": "NPS_POSITIVO", "output": 0 },
+            { "value": "NPS_NEUTRO", "output": 1 },
+            { "value": "NPS_NEGATIVO", "output": 2 }
+          ]
+        }
+      }
+    },
+
+    {
+      "id": "resposta-positivo",
+      "name": "12a · Resposta NPS Positivo + Indicação",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 520],
+      "parameters": {
+        "method": "POST",
+        "url": "=={{ $json.evolution_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "=={{ $json.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.numero_lead }}\",\n  \"text\": \"Que ótimo, {{ $json.nome_lead }}! Fico muito feliz que a experiência foi boa 💜\\n\\nTenho uma novidade especial pra você: se você indicar uma amiga ou familiar para fazer o procedimento aqui na {{ $json.unidade_nome }}, vocês DOIS ganham desconto na próxima sessão! Basta vir juntos na mesma visita.\\n\\nTem alguém que você toparia indicar?\",\n  \"delay\": 1200\n}",
+        "options": {}
+      }
+    },
+
+    {
+      "id": "resposta-neutro",
+      "name": "12b · Resposta NPS Neutro",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 620],
+      "parameters": {
+        "method": "POST",
+        "url": "=={{ $json.evolution_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "=={{ $json.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.numero_lead }}\",\n  \"text\": \"Obrigada pela nota, {{ $json.nome_lead }}! Queremos sempre melhorar. O que poderíamos ter feito melhor na sua experiência hoje?\",\n  \"delay\": 1200\n}",
+        "options": {}
+      }
+    },
+
+    {
+      "id": "resposta-negativo",
+      "name": "12c · NPS Negativo → Escalar Humano",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 720],
+      "parameters": {
+        "method": "POST",
+        "url": "=={{ $json.evolution_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "=={{ $json.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.numero_lead }}\",\n  \"text\": \"Obrigada por ser honesta, {{ $json.nome_lead }}. Sinto muito que a experiência não foi como esperado. Vou conectar você agora com um de nossos atendentes para cuidar disso da melhor forma. Um momento! 💜\",\n  \"delay\": 1200\n}",
+        "options": {}
+      }
+    },
+
+    {
+      "id": "notificar-humano-negativo",
+      "name": "13 · Notificar Humano (NPS Negativo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 720],
+      "parameters": {
+        "method": "POST",
+        "url": "=={{ $json.evolution_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "=={{ $json.evolution_apikey }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"555196233390\",\n  \"text\": \"🔴 *NPS NEGATIVO — {{ $json.unidade_nome }}*\\n\\n👤 *Lead:* {{ $json.nome_lead }}\\n📱 *WhatsApp:* {{ $json.numero_lead }}\\n⭐ *Nota:* {{ $json.nota }}/5\\n🎯 *Sessão:* {{ $json.area_sessao }}\\n\\n👆 Entrar em contato imediatamente para reverter a insatisfação.\",\n  \"delay\": 500\n}",
+        "options": {}
+      }
+    },
+
+    {
+      "id": "webhook-resposta-ok",
+      "name": "14 · Resposta ao Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 620],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"ok\" }",
+        "options": {}
+      }
+    }
+
+  ],
+
+  "connections": {
+    "01 · Cron — Verificar Sessões Realizadas": {
+      "main": [[{ "node": "02 · Buscar Sessões REALIZADAS no Redis", "type": "main", "index": 0 }]]
+    },
+    "02 · Buscar Sessões REALIZADAS no Redis": {
+      "main": [[{ "node": "03 · Tem sessões para NPS?", "type": "main", "index": 0 }]]
+    },
+    "03 · Tem sessões para NPS?": {
+      "main": [
+        [{ "node": "04 · Montar Mensagem NPS", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "04 · Montar Mensagem NPS": {
+      "main": [[{ "node": "05 · Chamar Claude API", "type": "main", "index": 0 }]]
+    },
+    "05 · Chamar Claude API": {
+      "main": [[{ "node": "06 · Enviar NPS WhatsApp", "type": "main", "index": 0 }]]
+    },
+    "06 · Enviar NPS WhatsApp": {
+      "main": [[{ "node": "07 · Registrar NPS Enviado no Redis", "type": "main", "index": 0 }]]
+    },
+    "07 · Registrar NPS Enviado no Redis": {
+      "main": [[{ "node": "08 · Redis Set — NPS Aguardando", "type": "main", "index": 0 }]]
+    },
+    "09 · Webhook — Resposta do Lead ao NPS": {
+      "main": [[{ "node": "10 · Processar Nota do Lead", "type": "main", "index": 0 }]]
+    },
+    "10 · Processar Nota do Lead": {
+      "main": [[{ "node": "11 · Router por Nota", "type": "main", "index": 0 }]]
+    },
+    "11 · Router por Nota": {
+      "main": [
+        [{ "node": "12a · Resposta NPS Positivo + Indicação", "type": "main", "index": 0 }],
+        [{ "node": "12b · Resposta NPS Neutro", "type": "main", "index": 0 }],
+        [{ "node": "12c · NPS Negativo → Escalar Humano", "type": "main", "index": 0 }]
+      ]
+    },
+    "12a · Resposta NPS Positivo + Indicação": {
+      "main": [[{ "node": "14 · Resposta ao Webhook", "type": "main", "index": 0 }]]
+    },
+    "12b · Resposta NPS Neutro": {
+      "main": [[{ "node": "14 · Resposta ao Webhook", "type": "main", "index": 0 }]]
+    },
+    "12c · NPS Negativo → Escalar Humano": {
+      "main": [[{ "node": "13 · Notificar Humano (NPS Negativo)", "type": "main", "index": 0 }]]
+    },
+    "13 · Notificar Humano (NPS Negativo)": {
+      "main": [[{ "node": "14 · Resposta ao Webhook", "type": "main", "index": 0 }]]
+    }
+  },
+
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "_comentarios": {
+    "PASSO_1": "Importar no N8N via Settings > Import workflow",
+    "PASSO_2": "O nó 02 usa mock — implementar busca real no Redis quando em produção",
+    "PASSO_3": "Configurar credencial Anthropic API Key no nó 05",
+    "PASSO_4": "O webhook 09 recebe respostas do lead vindas do fluxo principal quando estagio=NPS_AGUARDANDO_NOTA",
+    "PASSO_5": "Ativar apenas após o fluxo principal estar em produção e Calendar configurado",
+    "FLUXO_RESPOSTA": "Quando lead responde ao NPS, o fluxo principal detecta chave 'nps_aguardando_{numero}' no Redis e redireciona para o webhook 09 deste fluxo"
+  }
+}
