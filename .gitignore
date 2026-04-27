@@ -1,0 +1,2 @@
+# Ignore Google OAuth credentials
+credentials/google-oauth-client-secret.json
