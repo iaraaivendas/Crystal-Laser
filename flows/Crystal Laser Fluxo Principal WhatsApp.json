@@ -82,7 +82,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const https = require('https');\nconst dados = $input.first().json;\n\nconst apiKey = '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';\n\nconst body = JSON.stringify({\n  model: 'claude-sonnet-4-5',\n  max_tokens: 1024,\n  system: dados.system_prompt_final,\n  messages: dados.messages_payload\n});\n\nconst options = {\n  hostname: 'api.anthropic.com',\n  path: '/v1/messages',\n  method: 'POST',\n  headers: {\n    'x-api-key': apiKey,\n    'anthropic-version': '2023-06-01',\n    'content-type': 'application/json',\n    'Content-Length': Buffer.byteLength(body)\n  }\n};\n\nconst result = await new Promise((resolve, reject) => {\n  const req = https.request(options, (res) => {\n    let data = '';\n    res.on('data', chunk => data += chunk);\n    res.on('end', () => {\n      try {\n        resolve(JSON.parse(data));\n      } catch (e) {\n        resolve({ raw: data, error: 'Failed to parse response' });\n      }\n    });\n  });\n  req.on('error', (e) => reject(e));\n  req.setTimeout(30000, () => { req.destroy(); reject(new Error('Timeout')); });\n  req.write(body);\n  req.end();\n});\n\n// Retorna todos os dados originais + resposta do Claude\nreturn [{\n  json: {\n    ...dados,\n    ...result\n  }\n}];"
+        "jsCode": "const https = require('https');\nconst dados = $input.first().json;\n\nconst apiKey = \"YOUR_API_KEY\"\n\nconst body = JSON.stringify({\n  model: 'claude-sonnet-4-5',\n  max_tokens: 1024,\n  system: dados.system_prompt_final,\n  messages: dados.messages_payload\n});\n\nconst options = {\n  hostname: 'api.anthropic.com',\n  path: '/v1/messages',\n  method: 'POST',\n  headers: {\n    'x-api-key': apiKey,\n    'anthropic-version': '2023-06-01',\n    'content-type': 'application/json',\n    'Content-Length': Buffer.byteLength(body)\n  }\n};\n\nconst result = await new Promise((resolve, reject) => {\n  const req = https.request(options, (res) => {\n    let data = '';\n    res.on('data', chunk => data += chunk);\n    res.on('end', () => {\n      try {\n        resolve(JSON.parse(data));\n      } catch (e) {\n        resolve({ raw: data, error: 'Failed to parse response' });\n      }\n    });\n  });\n  req.on('error', (e) => reject(e));\n  req.setTimeout(30000, () => { req.destroy(); reject(new Error('Timeout')); });\n  req.write(body);\n  req.end();\n});\n\n// Retorna todos os dados originais + resposta do Claude\nreturn [{\n  json: {\n    ...dados,\n    ...result\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -993,13 +993,13 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "c3c3ac16-daaa-418b-8898-dccb5d82b75c",
+  "versionId": "5d734465-c4cd-4f9b-8739-0241e1267f05",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "c4d99da8257ec53ded114c35a37aa313db75dff041d32faec281d5682c6fde9b"
