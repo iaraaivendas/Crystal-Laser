@@ -1,0 +1,1009 @@
+{
+  "name": "Crystal Laser — Fluxo Principal WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crystal-laser-whatsapp",
+        "options": {}
+      },
+      "id": "43df5f63-67fe-4d17-a7c3-383aa82590a4",
+      "name": "01 · Webhook Evolution API",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -704,
+        -1136
+      ],
+      "webhookId": "37d8f326-f1c1-42e0-8475-85a38cabe14c",
+      "notes": "Webhook URL: https://n8n.vps.iaraautomacoes.com.br/webhook/crystal-laser-whatsapp — configurar nas 5 instâncias da Evolution API"
+    },
+    {
+      "parameters": {
+        "jsCode": "const UNIDADES = {\n  'crystal-sinop': {\n    unidade_nome: 'Crystal Laser Sinop', cidade: 'Sinop',\n    horario_semana: '08:00 às 19:00', horario_sabado: '08:00 às 16:00',\n    horario_abertura_semana: 8, horario_fechamento_semana: 19,\n    horario_abertura_sabado: 8, horario_fechamento_sabado: 16,\n    google_calendar_id: 'crystallaser.sinop@gmail.com',\n    numero_whatsapp: '556699884352', numero_notificacao: '555196233390',\n    timezone: '-04:00'\n  },\n  'crystal-cuiaba': {\n    unidade_nome: 'Crystal Laser Cuiabá', cidade: 'Cuiabá',\n    horario_semana: '08:00 às 19:00', horario_sabado: '08:00 às 18:00',\n    horario_abertura_semana: 8, horario_fechamento_semana: 19,\n    horario_abertura_sabado: 8, horario_fechamento_sabado: 18,\n    google_calendar_id: 'laserdreamcuiaba@gmail.com',\n    numero_whatsapp: '556584040024', numero_notificacao: '555196233390',\n    timezone: '-04:00'\n  },\n  'crystal-sorriso': {\n    unidade_nome: 'Crystal Laser Sorriso', cidade: 'Sorriso',\n    horario_semana: '09:00 às 18:00', horario_sabado: '09:00 às 13:00',\n    horario_abertura_semana: 9, horario_fechamento_semana: 18,\n    horario_abertura_sabado: 9, horario_fechamento_sabado: 13,\n    google_calendar_id: 'crystallaser.sorriso@gmail.com',\n    numero_whatsapp: '556699220642', numero_notificacao: '555196233390',\n    timezone: '-04:00'\n  },\n  'crystal-varzea': {\n    unidade_nome: 'Crystal Laser Várzea Grande', cidade: 'Várzea Grande',\n    horario_semana: '09:00 às 18:00', horario_sabado: '08:00 às 14:00',\n    horario_abertura_semana: 9, horario_fechamento_semana: 18,\n    horario_abertura_sabado: 8, horario_fechamento_sabado: 14,\n    google_calendar_id: 'crystallaser.vg@gmail.com',\n    numero_whatsapp: '556598011102', numero_notificacao: '555196233390',\n    timezone: '-04:00'\n  },\n  'crystal-contagem': {\n    unidade_nome: 'Crystal Laser Contagem', cidade: 'Contagem',\n    horario_semana: '13:00 às 19:00', horario_sabado: '09:00 às 14:00',\n    horario_abertura_semana: 13, horario_fechamento_semana: 19,\n    horario_abertura_sabado: 9, horario_fechamento_sabado: 14,\n    google_calendar_id: 'crystallaser.contagem@gmail.com',\n    numero_whatsapp: '553171556818', numero_notificacao: '555196233390',\n    timezone: '-03:00'\n  }\n};\n\nfunction normalizarNumero(jid) {\n  if (!jid) return '';\n  return jid.replace(/@[\\w.]+$/, '').trim();\n}\n\nconst body = $input.first().json.body || $input.first().json;\nconst nomeInstancia = body.instance || '';\nconst remoteJid = body.data?.key?.remoteJid || '';\nconst fromMe = body.data?.key?.fromMe || false;\nconst eventType = body.event || body.data?.event || '';\nconst message_id = body.data?.key?.id || '';\n\n// Descarta eventos de sistema\nconst EVENTOS_IGNORAR = ['MESSAGE_ACK', 'MESSAGES_UPDATE', 'PRESENCE_UPDATE', 'CALL'];\nif (EVENTOS_IGNORAR.some(e => eventType.includes(e))) {\n  throw new Error('EVENTO_IGNORADO: ' + eventType);\n}\n\n// Descarta mensagens próprias\nif (fromMe) throw new Error('MENSAGEM_PROPRIA');\n\n// Descarta mensagens sem ID (evita duplicatas de eventos sem identificador)\nif (!message_id) throw new Error('MENSAGEM_SEM_ID');\n\n// Descarta status e reações\nconst tipoMensagem = Object.keys(body.data?.message || {}).filter(k => k !== 'messageContextInfo')[0] || '';\nconst TIPOS_IGNORAR = ['reactionMessage', 'protocolMessage', 'senderKeyDistributionMessage', 'statusJidList'];\nif (TIPOS_IGNORAR.includes(tipoMensagem)) {\n  throw new Error('TIPO_IGNORADO: ' + tipoMensagem);\n}\n\nconst mensagemTexto = (\n  body.data?.message?.conversation ||\n  body.data?.message?.extendedTextMessage?.text ||\n  body.data?.message?.imageMessage?.caption ||\n  body.data?.message?.documentMessage?.caption ||\n  body.data?.message?.buttonsResponseMessage?.selectedDisplayText ||\n  body.data?.message?.listResponseMessage?.title ||\n  ''\n).trim();\n\nif (!mensagemTexto) throw new Error('MENSAGEM_VAZIA');\n\nconst unidade = UNIDADES[nomeInstancia];\nif (!unidade) throw new Error('UNIDADE_NAO_ENCONTRADA: ' + nomeInstancia);\n\nconst numero_remetente = normalizarNumero(remoteJid);\nconst numero_receptor = normalizarNumero(body.data?.key?.participant || '') || unidade.numero_whatsapp;\nconst nome_whatsapp = body.data?.pushName || body.data?.key?.pushName || '';\n\nreturn [{\n  json: {\n    numero_remetente,\n    numero_receptor,\n    mensagem: mensagemTexto,\n    message_id,\n    nome_whatsapp,\n    timezone: unidade.timezone,\n    ...unidade\n  }\n}];"
+      },
+      "id": "c1868fec-4cb5-4e02-b22e-5a1435e76037",
+      "name": "02 · Identificar Unidade e Injetar Contexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -496,
+        -1136
+      ],
+      "notes": "CONFIGURAR: substitua os google_calendar_id pelos IDs reais após pegar nas contas Google de cada unidade"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "value",
+        "key": "=cl_hist_{{$json.numero_remetente}}_{{$json.numero_receptor}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        432,
+        -752
+      ],
+      "id": "39962dbb-2faf-4dbc-a9ff-af5e8d45496e",
+      "name": "03a · Redis",
+      "credentials": {
+        "redis": {
+          "id": "Hc47g0NYXnAvWj92",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const dadosRedis = $input.first().json;\nconst dadosOriginais = $('02 · Identificar Unidade e Injetar Contexto').first().json;\n\nconst valorRedis = dadosRedis.value || null;\nlet historico;\n\nif (valorRedis) {\n  try { historico = JSON.parse(valorRedis); }\n  catch (e) { historico = null; }\n}\n\nif (!historico) {\n  historico = {\n    nome_lead: '',\n    estagio_lead: 'NOVO',\n    vitiligo_verificado: false,\n    area_interesse: '',\n    combo_apresentado: '',\n    forma_pagamento_escolhida: '',\n    historico_mensagens: [],\n    flags: [],\n    criado_em: new Date().toISOString()\n  };\n}\n\nconst msgs = historico.historico_mensagens || [];\nconst historicoLimitado = msgs.length > 20 ? [...msgs.slice(0, 2), ...msgs.slice(-18)] : msgs;\n\n// const historicoComMensagemAtual = [\n//   ...historicoLimitado,\n//   { role: 'user', content: dadosOriginais.mensagem, timestamp: new Date().toISOString() }\n// ];\n\nconst historicoComMensagemAtual = [\n  ...historicoLimitado.map(m => ({ role: m.role, content: m.content })),\n  { role: 'user', content: dadosOriginais.mensagem }\n];\n\nreturn [{\n  json: {\n    numero_remetente: dadosOriginais.numero_remetente,\n    numero_receptor: dadosOriginais.numero_receptor,\n    mensagem: dadosOriginais.mensagem,\n    message_id: dadosOriginais.message_id,\n    unidade_nome: dadosOriginais.unidade_nome,\n    cidade: dadosOriginais.cidade,\n    horario_semana: dadosOriginais.horario_semana,\n    horario_sabado: dadosOriginais.horario_sabado,\n    horario_abertura_semana: dadosOriginais.horario_abertura_semana,\n    horario_fechamento_semana: dadosOriginais.horario_fechamento_semana,\n    horario_abertura_sabado: dadosOriginais.horario_abertura_sabado,\n    horario_fechamento_sabado: dadosOriginais.horario_fechamento_sabado,\n    google_calendar_id: dadosOriginais.google_calendar_id,\n    numero_notificacao: dadosOriginais.numero_notificacao,\n    // nome_lead: historico.nome_lead || '',\n    nome_lead: historico.nome_lead || dadosOriginais.nome_whatsapp || '',\n    nome_whatsapp: dadosOriginais.nome_whatsapp || '',\n    estagio_lead: historico.estagio_lead || 'NOVO',\n    vitiligo_verificado: historico.vitiligo_verificado || false,\n    area_interesse: historico.area_interesse || '',\n    combo_apresentado: historico.combo_apresentado || '',\n    forma_pagamento_escolhida: historico.forma_pagamento_escolhida || '',\n    flags: historico.flags || [],\n    historico_mensagens: historicoComMensagemAtual,\n    redis_chave: `cl_hist_${dadosOriginais.numero_remetente}_${dadosOriginais.numero_receptor}`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        -528
+      ],
+      "id": "34bd6dad-ae26-4fdd-a36c-3449558362ca",
+      "name": "04 · Processar resultado do Redis"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\nconst fs = require('fs');\nlet systemPrompt = fs.readFileSync(\n  '/home/iara/clients/Crystal-Laser/agents/sdr_system_prompt_v2.2.md',\n  'utf8'\n);\n\nsystemPrompt = systemPrompt\n  .replaceAll('{{unidade_nome}}', dados.unidade_nome)\n  .replaceAll('{{cidade}}', dados.cidade)\n  .replaceAll('{{horario_semana}}', dados.horario_semana)\n  .replaceAll('{{horario_sabado}}', dados.horario_sabado)\n  .replaceAll('{{nome_lead}}', dados.nome_lead || '')\n  .replaceAll('{{estagio_lead}}', dados.estagio_lead || 'NOVO');\n\nconst messages = dados.historico_mensagens || [{ role: 'user', content: dados.mensagem }];\n\nconst agora = new Date().toLocaleDateString('pt-BR', {\n  timeZone: 'America/Cuiaba',\n  weekday: 'long',\n  day: '2-digit',\n  month: '2-digit',\n  year: 'numeric'\n});\n\nsystemPrompt = systemPrompt.replaceAll('{{data_atual}}', agora);\n\nconst diasNomes = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];\nconst base = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Cuiaba' }));\nlet proximasDatas = '';\nfor (let i = 1; i <= 7; i++) {\n  const d = new Date(base);\n  d.setDate(base.getDate() + i);\n  const dd = String(d.getDate()).padStart(2,'0');\n  const mm = String(d.getMonth()+1).padStart(2,'0');\n  const yyyy = d.getFullYear();\n  proximasDatas += `${diasNomes[d.getDay()]}: ${dd}/${mm}/${yyyy}\\n`;\n}\nsystemPrompt = systemPrompt.replaceAll('{{proximas_datas}}', proximasDatas.trim());\n\nreturn [{\n  json: {\n    ...dados,\n    system_prompt_final: systemPrompt,\n    messages_payload: messages\n  }\n}];"
+      },
+      "id": "f9bc2ab6-503b-4d90-897e-0339c2bca2f1",
+      "name": "05 · Montar System Prompt com Variáveis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        -528
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const https = require('https');\nconst dados = $input.first().json;\n\nconst apiKey = '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';\n\nconst body = JSON.stringify({\n  model: 'claude-sonnet-4-5',\n  max_tokens: 1024,\n  system: dados.system_prompt_final,\n  messages: dados.messages_payload\n});\n\nconst options = {\n  hostname: 'api.anthropic.com',\n  path: '/v1/messages',\n  method: 'POST',\n  headers: {\n    'x-api-key': apiKey,\n    'anthropic-version': '2023-06-01',\n    'content-type': 'application/json',\n    'Content-Length': Buffer.byteLength(body)\n  }\n};\n\nconst result = await new Promise((resolve, reject) => {\n  const req = https.request(options, (res) => {\n    let data = '';\n    res.on('data', chunk => data += chunk);\n    res.on('end', () => {\n      try {\n        resolve(JSON.parse(data));\n      } catch (e) {\n        resolve({ raw: data, error: 'Failed to parse response' });\n      }\n    });\n  });\n  req.on('error', (e) => reject(e));\n  req.setTimeout(30000, () => { req.destroy(); reject(new Error('Timeout')); });\n  req.write(body);\n  req.end();\n});\n\n// Retorna todos os dados originais + resposta do Claude\nreturn [{\n  json: {\n    ...dados,\n    ...result\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        -528
+      ],
+      "id": "4a9b0890-6771-4b0a-95fa-0e03f41bf7a6",
+      "name": "06 · Chamar Claude API (Sonnet 4.5)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n// const ctx = $('05 · Montar System Prompt com Variáveis').item.json;\nconst ctx = $('05 · Montar System Prompt com Variáveis').item.json;\nconst ctx04 = $('04 · Processar resultado do Redis').item.json;\n\nconst claudeResponse = dados.content?.[0]?.text || '';\nconst escalarHumano = claudeResponse.includes('[ESCALAR_HUMANO]');\nconst escalarMenor = claudeResponse.includes('[ESCALAR_MENOR]');\nconst encerrarVitiligo = claudeResponse.includes('[ENCERRAR_VITILIGO]');\nconst agendar = claudeResponse.includes('[AGENDAR]');\nconst followUp = claudeResponse.includes('[FOLLOW_UP]');\n\nlet acao_principal = 'CONTINUAR';\nif (escalarHumano) acao_principal = 'ESCALAR_HUMANO';\nelse if (escalarMenor) acao_principal = 'ESCALAR_MENOR';\nelse if (encerrarVitiligo) acao_principal = 'ENCERRAR_VITILIGO';\nelse if (agendar) acao_principal = 'AGENDAR';\nelse if (followUp) acao_principal = 'FOLLOW_UP';\n\nconst metaAgendamentoMatch = claudeResponse.match(/META_AGENDAMENTO:\\s*({[^}]+})/);\nlet dataAgendamento = null;\nlet dataAgendamentoFim = null;\nlet areaAgendada = '';\n\nif (metaAgendamentoMatch) {\n  try {\n    const meta = JSON.parse(metaAgendamentoMatch[1]);\n    const tz = ctx.timezone || '-04:00';\n    const dataInicio = new Date(`${meta.data}T${meta.hora}:00${tz}`);\n    const dataFim = new Date(dataInicio.getTime() + (meta.duracao_min || 30) * 60000);\n    dataAgendamento = dataInicio.toISOString();\n    dataAgendamentoFim = dataFim.toISOString();\n    areaAgendada = meta.area || '';\n  } catch (e) {}\n}\n\nconst respostaLimpa = claudeResponse\n  .replace(/META_AGENDAMENTO:\\s*{[^}]+}/g, '')\n  .replace(/\\[ESCALAR_HUMANO\\]/g, '')\n  .replace(/\\[ESCALAR_MENOR\\]/g, '')\n  .replace(/\\[ENCERRAR_VITILIGO\\]/g, '')\n  .replace(/\\[AGENDAR\\]/g, '')\n  .replace(/\\[FOLLOW_UP\\]/g, '')\n  .trim();\n\nreturn [{\n  json: {\n    numero_remetente: ctx.numero_remetente,\n    numero_receptor: ctx.numero_receptor,\n    unidade_nome: ctx.unidade_nome,\n    cidade: ctx.cidade,\n    google_calendar_id: ctx.google_calendar_id,\n    numero_notificacao: ctx.numero_notificacao,\n    nome_lead: ctx.nome_lead,\n    estagio_lead: ctx.estagio_lead,\n    area_interesse: ctx.area_interesse,\n    mensagem: ctx.mensagem,\n    // redis_chave: ctx.redis_chave,\n    redis_chave: ctx.redis_chave || ctx04.redis_chave,\n    evolution_instancia: ctx.evolution_instancia,\n    evolution_url: ctx.evolution_url,\n    evolution_apikey: ctx.evolution_apikey,\n    resposta_final: respostaLimpa,\n    acao_principal,\n    notificacao_montada: false,\n    mensagem_notificacao: '',\n    data_agendamento: dataAgendamento,\n    data_agendamento_fim: dataAgendamentoFim,\n    area_agendada: areaAgendada,\n    historico_mensagens: ctx.historico_mensagens,\n    timezone: ctx.timezone,\n    historico_mensagens_atualizado: [\n      ...(ctx.historico_mensagens || []),\n      { role: 'assistant', content: respostaLimpa }\n    ]\n  }\n}];"
+      },
+      "id": "0ef2ab75-1cb6-4dab-80a5-1d1447eca91c",
+      "name": "07 · Processar Resposta e Detectar Tags",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        -528
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cdc1bab6-5649-4efa-901b-ac39a4851d7c",
+              "leftValue": "={{ $json.acao_principal }}",
+              "rightValue": "ESCALAR_HUMANO",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "aec27273-7f79-417c-850e-09b289178cb8",
+              "leftValue": "={{ $json.acao_principal }}",
+              "rightValue": "ESCALAR_MENOR",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        208,
+        -528
+      ],
+      "id": "1de59e03-3110-48df-ab0f-e9080d3ec895",
+      "name": "08a · IF Escalar?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ea9d7768-2b3d-40cd-aa93-a458aa2a971e",
+              "leftValue": "={{ $json.acao_principal }}",
+              "rightValue": "AGENDAR",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        144,
+        -256
+      ],
+      "id": "e36e390c-02ce-4726-90e6-4e65bbc2925f",
+      "name": "08b · IF Agendar?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\nconst motivos = {\n  'ESCALAR_HUMANO': '⚠️ FECHAMENTO / CANCELAMENTO / RECLAMAÇÃO',\n  'ESCALAR_MENOR': '👧 PROTOCOLO MENOR DE IDADE (filha ≤ 14 anos)'\n};\n\nconst motivo = motivos[dados.acao_principal] || '⚠️ ESCALONAMENTO';\n\nconst mensagem =\n`🔔 *CRYSTAL LASER ${dados.unidade_nome.toUpperCase()}*\n${motivo}\n\n👤 *Lead:* ${dados.nome_lead || 'Não identificado'}\n📱 *WhatsApp:* ${dados.numero_remetente}\n🎯 *Área de interesse:* ${dados.area_interesse || 'Não informada'}\n📋 *Estágio:* ${dados.estagio_lead || 'NOVO'}\n\n💬 *Última mensagem do lead:*\n\"${dados.mensagem}\"\n\n👆 Entre em contato agora para dar continuidade ao atendimento.`;\n\nreturn [{\n  json: {\n    ...dados,\n    notificacao_montada: true,\n    mensagem_notificacao: mensagem\n  }\n}];"
+      },
+      "id": "d0647905-fd0a-484d-b056-5c3e8db76f68",
+      "name": "09 · Notificar Humano (Escalar)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        -544
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.notificacao_montada }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "id": "aaa11111-0000-0000-0000-000000000001"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "382a21f5-90f9-4af6-9a67-4c5fefd8504a",
+      "name": "10 · Tem notificação?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        -576
+      ],
+      "notes": "Se notificacao_montada=true → envia HTTP para humano. Se false → pula direto para 10c."
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\nconst bodyPayload = JSON.stringify({\n  number: dados.numero_notificacao,\n  text: dados.mensagem_notificacao,\n  delay: 500\n});\n\nconst path = dados.evolution_url.replace('http://31.97.93.103:8080', '');\n\nconst result = await new Promise((resolve, reject) => {\n  const req = require('http').request({\n    hostname: '31.97.93.103',\n    port: 8080,\n    path: path,\n    method: 'POST',\n    headers: {\n      'apikey': dados.evolution_apikey,\n      'Content-Type': 'application/json',\n      'Content-Length': Buffer.byteLength(bodyPayload)\n    }\n  }, (res) => {\n    let data = '';\n    res.on('data', chunk => data += chunk);\n    res.on('end', () => {\n      try { resolve(JSON.parse(data)); }\n      catch (e) { resolve({ raw: data }); }\n    });\n  });\n  req.on('error', (e) => reject(new Error(e.message)));\n  req.setTimeout(15000, () => { req.destroy(); reject(new Error('Timeout')); });\n  req.write(bodyPayload);\n  req.end();\n});\n\nreturn [{ json: { ...dados, notificacao_response: result } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        -736
+      ],
+      "id": "2a905c88-7fd9-4f74-9d3b-aa01ea61ccbf",
+      "name": "11 - HTTP Notificação Humano"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\nconst numeroDestino = dados.numero_remetente || '';\n\nif (!numeroDestino || numeroDestino.includes('@lid')) {\n  return [{ json: { ...dados, whatsapp_response: { skipped: 'lid_or_empty' } } }];\n}\n\nconst bodyPayload = JSON.stringify({\n  number: numeroDestino,\n  text: dados.resposta_final,\n  delay: 1200\n});\n\nconst path = dados.evolution_url.replace('http://31.97.93.103:8080', '');\n\nconst result = await new Promise((resolve, reject) => {\n  const req = require('http').request({\n    hostname: '31.97.93.103',\n    port: 8080,\n    path: path,\n    method: 'POST',\n    headers: {\n      'apikey': dados.evolution_apikey,\n      'Content-Type': 'application/json',\n      'Content-Length': Buffer.byteLength(bodyPayload)\n    }\n  }, (res) => {\n    let data = '';\n    res.on('data', chunk => data += chunk);\n    res.on('end', () => {\n      try { resolve(JSON.parse(data)); }\n      catch (e) { resolve({ raw: data }); }\n    });\n  });\n  req.on('error', (e) => reject(new Error(e.message)));\n  req.setTimeout(15000, () => { req.destroy(); reject(new Error('Timeout')); });\n  req.write(bodyPayload);\n  req.end();\n});\n\nreturn [{ json: { ...dados, whatsapp_response: result } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        -560
+      ],
+      "id": "cbe65adc-28cd-4d7e-a23f-e126c00490ef",
+      "name": "12 · Enviar Mensagem WhatsApp"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\nconst historicoParaSalvar = {\n  // nome_lead: dados.nome_lead || '',\n  nome_lead: dados.nome_lead || dados.nome_whatsapp || '',\n  estagio_lead: dados.estagio_lead || 'NOVO',\n  vitiligo_verificado: dados.vitiligo_verificado || false,\n  area_interesse: dados.area_interesse || '',\n  combo_apresentado: dados.combo_apresentado || '',\n  forma_pagamento_escolhida: dados.forma_pagamento_escolhida || '',\n  flags: dados.flags || [],\n  numero_notificacao: dados.numero_notificacao || '',\n  historico_mensagens: dados.historico_mensagens_atualizado || [],\n  atualizado_em: new Date().toISOString()\n};\n\nreturn [{\n  json: {\n    redis_chave: dados.redis_chave,\n    redis_valor: JSON.stringify(historicoParaSalvar),\n    redis_ttl: 2592000,\n    sucesso: true\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        -560
+      ],
+      "id": "0760cb32-8bc3-4a07-a1ed-7b8b0c766300",
+      "name": "13 - Preparar dados para salvar no Redis"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=cl_hist_{{ $('04 · Processar resultado do Redis').item.json.numero_remetente }}_{{ $('04 · Processar resultado do Redis').item.json.numero_receptor }}",
+        "value": "={{ $('13 - Preparar dados para salvar no Redis').item.json.redis_valor }}",
+        "keyType": "string",
+        "expire": true,
+        "ttl": "={{ $('13 - Preparar dados para salvar no Redis').item.json.redis_ttl }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1792,
+        -560
+      ],
+      "id": "df0d8638-7a26-4484-aa07-4c56f24eaa6d",
+      "name": "14 - Redis",
+      "credentials": {
+        "redis": {
+          "id": "Hc47g0NYXnAvWj92",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"ok\" }",
+        "options": {}
+      },
+      "id": "06f32c5e-5e0b-462d-a8d1-598bc38065f9",
+      "name": "15 · Resposta ao Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1792,
+        -752
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": "={{ $json.google_calendar_id }}",
+        "start": "={{ $json.data_agendamento }}",
+        "end": "={{ $json.data_agendamento_fim }}",
+        "additionalFields": {
+          "description": "=Lead: {{ $json.nome_lead }}\\nWhatsApp: {{ $json.numero_remetente }}\\nÁrea: {{ $json.area_interesse }}\\nStatus: PENDENTE_PAGAMENTO",
+          "summary": "=Sessão Crystal Laser — {{ $json.nome_lead }}"
+        }
+      },
+      "id": "498e0942-a114-4c06-9238-c8e103f0150e",
+      "name": "09a · Criar Evento Google Calendar",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [
+        432,
+        -288
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "g14oHFAJBOJtwSHA",
+          "name": "Google Calendar account"
+        }
+      },
+      "notes": "CONFIGURAR: autenticar Google Calendar no N8N com OAuth2 das contas de cada unidade. Aguardando Calendar IDs reais."
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\nconst nomeUnidade = (dados.unidade_nome || dados.nome_unidade || 'CRYSTAL LASER').toUpperCase();\n\nconst dataFormatada = dados.data_agendamento\n  ? new Date(dados.data_agendamento).toLocaleString('pt-BR', {\n      timeZone: 'America/Cuiaba',\n      day: '2-digit', month: '2-digit', year: 'numeric',\n      hour: '2-digit', minute: '2-digit'\n    })\n  : 'Não informada';\n\nconst mensagem =\n`📅 *NOVO AGENDAMENTO — CRYSTAL LASER ${nomeUnidade}*\n👤 *Lead:* ${dados.nome_lead || 'Não identificado'}\n📱 *WhatsApp:* ${dados.numero_remetente}\n🎯 *Área:* ${dados.area_agendada || dados.area_interesse || 'Não informada'}\n🕐 *Data/Hora:* ${dataFormatada}\n📋 *Estágio:* ${dados.estagio_lead || 'NOVO'}\n✅ Evento criado no Google Calendar.\n👆 Confirme o agendamento e entre em contato para finalizar o pagamento.`;\n\nreturn [{\n  json: {\n    ...dados,\n    notificacao_montada: true,\n    mensagem_notificacao: mensagem\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        -288
+      ],
+      "id": "9a5b455c-4ff8-48f0-a63e-b0a32d2da5da",
+      "name": "09b · Notificar Agendamento"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $input.first().json;\n\nconst INSTANCIAS = {\n  '556699884352': 'crystal-sinop',\n  '556584040024': 'crystal-cuiaba',\n  '556699220642': 'crystal-sorriso',\n  '556598011102': 'crystal-varzea',\n  '553171556818': 'crystal-contagem'\n};\n\n// const INSTANCIAS = {\n//   '5566999884352': 'crystal-sinop',\n//   '5565984040024': 'crystal-cuiaba',\n//   '5566999220642': 'crystal-sorriso',\n//   '5565998011102': 'crystal-varzea',\n//   '5531971556818': 'crystal-contagem'\n// };\n\nconst instancia = INSTANCIAS[dados.numero_receptor] || 'crystal-sinop';\n\nreturn [{\n  json: {\n    ...dados,\n    evolution_instancia: instancia,\n    evolution_url: `http://31.97.93.103:8080/message/sendText/${instancia}`,\n    evolution_apikey: 'iara-evo-key-2026'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        -576
+      ],
+      "id": "100f7e43-c4fa-4adf-b64b-37c5ead633f2",
+      "name": "09c · Instância por unidade",
+      "notes": "Recebe conexões de: 09 Router (saída 0), 10 Notificar, 10d Calendar, 04b Fora do Horário"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "=msg_proc_{{ $json.message_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        -1136
+      ],
+      "id": "cdf196be-d8de-4ac0-bcc7-636d4f70c78c",
+      "name": "02a · Redis Idempotência GET",
+      "credentials": {
+        "redis": {
+          "id": "Hc47g0NYXnAvWj92",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "71602ecd-41a6-483c-8219-eee6be99efa1",
+              "leftValue": "={{ $json.value }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -96,
+        -1136
+      ],
+      "id": "b15e4215-22c8-4f4c-8236-0d5182797e2a",
+      "name": "02b · IF vazio?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2353f589-e505-42f2-8fb5-46fcbc11081d",
+              "leftValue": "={{ $json.numero_remetente }}",
+              "rightValue": "555194704829",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "e2c674ec-f811-4946-9c1e-a0c02a4b30f8",
+              "leftValue": "={{ $json.numero_remetente }}",
+              "rightValue": "555196233390",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -544,
+        -928
+      ],
+      "id": "cf46c555-560a-4bba-b112-cff9004f9911",
+      "name": "02d · IF Número Teste"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=msg_proc_{{ $('02 · Identificar Unidade e Injetar Contexto').item.json.message_id }}",
+        "value": "1",
+        "expire": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        -768
+      ],
+      "id": "b439ab20-c216-4411-b6a8-7400862c1598",
+      "name": "02c · Redis SET",
+      "credentials": {
+        "redis": {
+          "id": "Hc47g0NYXnAvWj92",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $('02 · Identificar Unidade e Injetar Contexto').first().json;\nreturn [{ json: { ...dados } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -688,
+        -768
+      ],
+      "id": "dfeec74f-bad4-499f-a9a4-f5e2f1ab21e3",
+      "name": "02c1 Retrieve Data"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        576,
+        -112
+      ],
+      "id": "3631bff7-d6d7-4b0a-a0bd-bc93888d55bf",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "key": "=proc_{{ $('02 · Identificar Unidade e Injetar Contexto').item.json.numero_remetente }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        -768
+      ],
+      "id": "c1e2212d-9a01-430f-ae13-cb7a94d26afd",
+      "name": "02e · Redis GET Processando",
+      "credentials": {
+        "redis": {
+          "id": "Hc47g0NYXnAvWj92",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "32d967c6-8041-4de9-a0b5-2279a0dc974e",
+              "leftValue": "={{ $json.value }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -272,
+        -768
+      ],
+      "id": "00f14906-4795-469a-b1d7-b7dba79cdd42",
+      "name": "02f · IF Processando?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const dados = $('02 · Identificar Unidade e Injetar Contexto').first().json; return [{ json: { ...dados } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        -752
+      ],
+      "id": "6283fb3c-e8ee-44cd-bcf4-5a9c6353c306",
+      "name": "02g1 · Retrieve Data Processando"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=proc_{{ $('04 · Processar resultado do Redis').item.json.numero_remetente }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        -560
+      ],
+      "id": "d59594da-7431-4272-9f73-fcef93af92f1",
+      "name": "14b · Redis DEL Processando",
+      "credentials": {
+        "redis": {
+          "id": "Hc47g0NYXnAvWj92",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=proc_{{ $('02 · Identificar Unidade e Injetar Contexto').item.json.numero_remetente }}",
+        "value": "1",
+        "expire": true,
+        "ttl": 10
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -752
+      ],
+      "id": "149decae-e148-4e16-89a1-228419291aef",
+      "name": "02g · Redis SET Processando",
+      "credentials": {
+        "redis": {
+          "id": "Hc47g0NYXnAvWj92",
+          "name": "Redis account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01 · Webhook Evolution API": {
+      "main": [
+        [
+          {
+            "node": "02 · Identificar Unidade e Injetar Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 · Identificar Unidade e Injetar Contexto": {
+      "main": [
+        [
+          {
+            "node": "02a · Redis Idempotência GET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03a · Redis": {
+      "main": [
+        [
+          {
+            "node": "04 · Processar resultado do Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 · Processar resultado do Redis": {
+      "main": [
+        [
+          {
+            "node": "05 · Montar System Prompt com Variáveis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 · Montar System Prompt com Variáveis": {
+      "main": [
+        [
+          {
+            "node": "06 · Chamar Claude API (Sonnet 4.5)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 · Chamar Claude API (Sonnet 4.5)": {
+      "main": [
+        [
+          {
+            "node": "07 · Processar Resposta e Detectar Tags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 · Processar Resposta e Detectar Tags": {
+      "main": [
+        [
+          {
+            "node": "08a · IF Escalar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08a · IF Escalar?": {
+      "main": [
+        [
+          {
+            "node": "09 · Notificar Humano (Escalar)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "08b · IF Agendar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08b · IF Agendar?": {
+      "main": [
+        [
+          {
+            "node": "09a · Criar Evento Google Calendar",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "09c · Instância por unidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 · Notificar Humano (Escalar)": {
+      "main": [
+        [
+          {
+            "node": "09c · Instância por unidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 · Tem notificação?": {
+      "main": [
+        [
+          {
+            "node": "11 - HTTP Notificação Humano",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "12 · Enviar Mensagem WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 - HTTP Notificação Humano": {
+      "main": [
+        [
+          {
+            "node": "12 · Enviar Mensagem WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12 · Enviar Mensagem WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "13 - Preparar dados para salvar no Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 - Preparar dados para salvar no Redis": {
+      "main": [
+        [
+          {
+            "node": "14 - Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 - Redis": {
+      "main": [
+        [
+          {
+            "node": "14b · Redis DEL Processando",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09a · Criar Evento Google Calendar": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "09b · Notificar Agendamento": {
+      "main": [
+        [
+          {
+            "node": "09c · Instância por unidade",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09c · Instância por unidade": {
+      "main": [
+        [
+          {
+            "node": "10 · Tem notificação?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02a · Redis Idempotência GET": {
+      "main": [
+        [
+          {
+            "node": "02b · IF vazio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02b · IF vazio?": {
+      "main": [
+        [
+          {
+            "node": "02c · Redis SET",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02d · IF Número Teste": {
+      "main": [
+        []
+      ]
+    },
+    "02c · Redis SET": {
+      "main": [
+        [
+          {
+            "node": "02c1 Retrieve Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF vazio?": {
+      "main": [
+        [
+          {
+            "node": "2b · IF Número Teste",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02d Redis SET": {
+      "main": [
+        [
+          {
+            "node": "03a · Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2b · IF Número Teste": {
+      "main": [
+        [
+          {
+            "node": "02d Redis SET",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "03a · Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02c1 Retrieve Data": {
+      "main": [
+        [
+          {
+            "node": "02e · Redis GET Processando",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "09b · Notificar Agendamento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02e · Redis GET Processando": {
+      "main": [
+        [
+          {
+            "node": "02f · IF Processando?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02f · IF Processando?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "02g · Redis SET Processando",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02g1 · Retrieve Data Processando": {
+      "main": [
+        [
+          {
+            "node": "03a · Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02g · Redis SET Processando": {
+      "main": [
+        [
+          {
+            "node": "02g1 · Retrieve Data Processando",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "c3c3ac16-daaa-418b-8898-dccb5d82b75c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c4d99da8257ec53ded114c35a37aa313db75dff041d32faec281d5682c6fde9b"
+  },
+  "id": "arIDuT9n82KVAfPA",
+  "tags": []
+}
