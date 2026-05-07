@@ -4,3 +4,5 @@ credentials/google-oauth-client-secret.json
 # Ignore API Key files
 .env
 .env.*.env
+evolution.env
+.env
